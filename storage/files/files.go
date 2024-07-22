@@ -40,7 +40,7 @@ func (s Storage) Save(page *storage.Page) (err error) {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	if err := gob.NewEncoder(file).Encode(page); err != nil {
 		return err
@@ -59,7 +59,7 @@ func (s Storage) PickRandom(uName string) (page *storage.Page, err error) {
 	}
 
 	if len(files) == 0 {
-		return nil, errors.New("no pages saved")
+		return nil, storage.ErrNoPagesSaved
 	}
 
 	rand.Seed(time.Now().UnixNano())
