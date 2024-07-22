@@ -4,25 +4,39 @@ import (
 	"flag"
 	"log"
 	"telegram-bot/clients/telegram"
+	event_consumer "telegram-bot/consumer/event-consumer"
+	telegram_events "telegram-bot/events/telegramEvents"
+	"telegram-bot/storage/files"
 )
 
 const (
-	tgBotHost = "api.telegram.org"
+	tgBotHost   = "api.telegram.org"
+	storagePath = "storage"
+	batchSize   = 100
 )
 
 func main() {
-	tgCliemt := telegram.New(tgBotHost, mustToken())
+	tgClient := telegram.New(tgBotHost, mustToken())
 
-	// fetcher = fetcher.New(tgCliemt)
+	eventsProcessor := telegram_events.New(
+		tgClient,
+		files.New(storagePath),
+	)
 
-	// processot = processor.New(tgCliemt)
-	// consumer.Start(fetcher, processor)
+	tgClient.SendMessage(324416742, "aboba")
+	log.Printf("Service launched")
+
+	consumer := event_consumer.New(eventsProcessor, eventsProcessor, batchSize)
+
+	if err := consumer.Start(); err != nil {
+		log.Fatal()
+	}
 
 }
 
 func mustToken() string {
 	token := flag.String(
-		"telegram-bot-token",           // name
+		"tg-bot-token",                 // name
 		"",                             // value
 		"token to acsess telegram bot", //usage
 	)
