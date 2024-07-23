@@ -1,37 +1,26 @@
 package storage
 
 import (
-	"crypto/sha1"
 	"errors"
-	"fmt"
-	"io"
-	"telegram-bot/lib/e"
 )
 
 var ErrNoPagesSaved = errors.New("no pages saved")
 
-type Storage interface {
-	Save(page *Page) error
-	PickRandom(userName string) (*Page, error)
-	Remove(page *Page) error
-	DoesExist(page *Page) (bool, error)
+type WordStorage interface {
+	SaveWord(word *Word) error
+	PickRandomWord(username string) (*Word, error)
+	RemoveWord(username string, word string) error
+	DoesExistWord(username string, word string) (bool, error)
+	GiveDefinition(username string, definition string) error
+
+	GetState(username string) (string, error)
+	SetState(username string, state string) error
+
+	AllWords(username string) ([]Word, error)
 }
 
-type Page struct {
-	URL      string
-	UserName string
-}
-
-func (p Page) Hash() (string, error) {
-	h := sha1.New()
-
-	if _, err := io.WriteString(h, p.URL); err != nil {
-		return "", e.Wrap("cant calculate hash", err)
-	}
-
-	if _, err := io.WriteString(h, p.UserName); err != nil {
-		return "", e.Wrap("cant calculate hash", err)
-	}
-
-	return fmt.Sprintf("%x", h.Sum(nil)), nil
+type Word struct {
+	Word       string
+	Definition string
+	UserName   string
 }

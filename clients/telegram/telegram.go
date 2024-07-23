@@ -3,7 +3,6 @@ package telegram
 import (
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"path"
@@ -59,6 +58,17 @@ func (c *Client) SendMessage(chatID int, text string) error {
 	return e.Wrap("cant send message", err)
 }
 
+func (c *Client) SendSpoilerMessage(chatID int, text string) error {
+	query := url.Values{}
+	query.Add("chat_id", strconv.Itoa(chatID))
+	query.Add("parse_mode", "MarkdownV2")
+	query.Add("text", "||"+text+"||")
+
+	_, err := c.doRequest(sendMessageMethod, query)
+
+	return e.Wrap("cant send message", err)
+}
+
 func (c *Client) doRequest(method string, query url.Values) (data []byte, err error) {
 	defer func() { err = e.Wrap("can't do request", err) }()
 
@@ -70,8 +80,6 @@ func (c *Client) doRequest(method string, query url.Values) (data []byte, err er
 	}
 
 	req.URL.RawQuery = query.Encode()
-
-	log.Println(req.URL)
 
 	resp, err := c.client.Do(req)
 	if err != nil {

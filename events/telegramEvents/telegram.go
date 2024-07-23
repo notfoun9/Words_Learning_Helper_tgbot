@@ -8,10 +8,12 @@ import (
 	"telegram-bot/storage"
 )
 
+type ProcessorState int
+
 type ProcessorTelegram struct {
-	tg      *telegram.Client
-	offset  int
-	storage storage.Storage
+	tg          *telegram.Client
+	offset      int
+	wordStorage storage.WordStorage
 }
 
 type Meta struct {
@@ -19,10 +21,10 @@ type Meta struct {
 	UserName string
 }
 
-func New(client *telegram.Client, stor storage.Storage) *ProcessorTelegram {
+func New(client *telegram.Client, wStor storage.WordStorage) *ProcessorTelegram {
 	return &ProcessorTelegram{
-		tg:      client,
-		storage: stor,
+		tg:          client,
+		wordStorage: wStor,
 	}
 }
 

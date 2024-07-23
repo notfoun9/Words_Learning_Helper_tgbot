@@ -23,7 +23,6 @@ func main() {
 		files.New(storagePath),
 	)
 
-	tgClient.SendMessage(324416742, "aboba")
 	log.Printf("Service launched")
 
 	consumer := event_consumer.New(eventsProcessor, eventsProcessor, batchSize)

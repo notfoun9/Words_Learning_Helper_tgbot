@@ -1,11 +1,13 @@
 package files
 
 import (
-	"encoding/gob"
 	"errors"
+	"io/fs"
 	"math/rand"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 	"telegram-bot/lib/e"
 	"telegram-bot/storage"
 	"time"
@@ -17,81 +19,135 @@ type Storage struct {
 	basePath string
 }
 
-func New(base string) Storage {
-	return Storage{basePath: base}
+func New(base string) WordStorage {
+	return WordStorage{basePath: base}
 }
 
-func (s Storage) Save(page *storage.Page) (err error) {
-	defer func() { err = e.Wrap("can't save page", err) }()
+type WordStorage struct {
+	basePath string
+}
 
-	fPath := filepath.Join(s.basePath, page.UserName)
-	if err := os.MkdirAll(fPath, defaultPerm); err != nil {
+func NewWordsStorage(base string) WordStorage {
+	return WordStorage{basePath: base}
+}
+
+func (ws WordStorage) SaveWord(word *storage.Word) (err error) {
+	defer func() { err = e.Wrap("can't save the word", err) }()
+
+	folderPath := filepath.Join(ws.basePath, word.UserName)
+	if err := os.MkdirAll(folderPath, defaultPerm); err != nil {
 		return err
 	}
 
-	fName, err := fileName(page)
-	if err != nil {
-		return err
-	}
+	fileName := word.Word + ".txt"
 
-	fPath = filepath.Join(fPath, fName)
+	filePath := filepath.Join(folderPath, fileName)
 
-	file, err := os.Create(fPath)
+	file, err := os.Create(filePath)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = file.Close() }()
 
-	if err := gob.NewEncoder(file).Encode(page); err != nil {
+	if err != nil {
+		return err
+	}
+
+	path := filepath.Join(ws.basePath, word.UserName, "StateFile.txt")
+
+	if err := os.Truncate(path, 0); err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, []byte(word.Word), defaultPerm); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (s Storage) PickRandom(uName string) (page *storage.Page, err error) {
+func (ws WordStorage) createStateFile(username string) error {
+	folderPath := filepath.Join(ws.basePath, username)
+
+	if err := os.MkdirAll(folderPath, defaultPerm); err != nil {
+		return err
+	}
+
+	path := filepath.Join(folderPath, "StateFile.txt")
+
+	_, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		file, err := os.Create(path)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = file.Close() }()
+
+		return err
+	} else {
+		return err
+	}
+}
+
+func (ws WordStorage) PickRandomWord(username string) (word *storage.Word, err error) {
 	defer func() { err = e.Wrap("cant pick a page", err) }()
 
-	path := filepath.Join(s.basePath, uName)
-	files, err := os.ReadDir(path)
+	fPath := filepath.Join(ws.basePath, username)
+	files, err := os.ReadDir(fPath)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(files) == 0 {
+	if len(files) == 1 {
 		return nil, storage.ErrNoPagesSaved
 	}
 
-	rand.Seed(time.Now().UnixNano())
-	n := rand.Intn(len(files))
+	var file fs.DirEntry
+	for {
+		rand.Seed(time.Now().UnixNano())
+		n := rand.Intn(len(files))
+		file = files[n]
 
-	file := files[n]
-
-	return s.decodePage(filepath.Join(path, file.Name()))
-}
-
-func (s Storage) Remove(p *storage.Page) error {
-	fileName, err := fileName(p)
-	if err != nil {
-		return e.Wrap("cant remove file", err)
+		if file.Name() != "StateFile.txt" {
+			break
+		}
 	}
 
-	path := filepath.Join(s.basePath, p.UserName, fileName)
+	text, err := os.ReadFile(path.Join(fPath, file.Name()))
+	if err != nil {
+		return nil, err
+	}
+
+	w, _ := strings.CutSuffix(file.Name(), ".txt")
+
+	return &storage.Word{
+		Word:       w,
+		Definition: string(text),
+		UserName:   username,
+	}, nil
+}
+
+func (ws WordStorage) RemoveWord(username string, word string) error {
+	fileName := word + ".txt"
+
+	path := filepath.Join(ws.basePath, username, fileName)
 
 	if err := os.Remove(path); err != nil {
 		return e.Wrap("cant remove file", err)
 	}
 
+	path = filepath.Join(ws.basePath, username, "StateFile.txt")
+
+	if err := os.Truncate(path, 0); err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (s Storage) DoesExist(p *storage.Page) (bool, error) {
-	fileName, err := fileName(p)
-	if err != nil {
-		return false, e.Wrap("cant read file", err)
-	}
+func (ws WordStorage) DoesExistWord(username string, w string) (b bool, err error) {
+	fileName := w + ".txt"
 
-	path := filepath.Join(s.basePath, p.UserName, fileName)
+	path := filepath.Join(ws.basePath, username, fileName)
 
 	switch _, err = os.Stat(path); {
 	case errors.Is(err, os.ErrNotExist):
@@ -103,21 +159,75 @@ func (s Storage) DoesExist(p *storage.Page) (bool, error) {
 	return true, nil
 }
 
-func (s Storage) decodePage(filePath string) (*storage.Page, error) {
-	f, err := os.Open(filePath)
+func (ws WordStorage) GiveDefinition(username string, definition string) error {
+	path := filepath.Join(ws.basePath, username, "StateFile.txt")
+	word, err := os.ReadFile(path)
 	if err != nil {
-		return nil, e.Wrap("cant decode page", err)
-	}
-	defer func() { _ = f.Close() }()
-
-	var p storage.Page
-	if err := gob.NewDecoder(f).Decode(&p); err != nil {
-		return nil, e.Wrap("cant decode page", err)
+		return err
 	}
 
-	return &p, nil
+	wordPath := filepath.Join(ws.basePath, username, string(word)) + ".txt"
+
+	if err := os.WriteFile(wordPath, []byte(definition), defaultPerm); err != nil {
+		return err
+	}
+
+	if err := os.Truncate(path, 0); err != nil {
+		return err
+	}
+	return nil
 }
 
-func fileName(p *storage.Page) (string, error) {
-	return p.Hash()
+func (ws WordStorage) GetState(username string) (string, error) {
+	if err := ws.createStateFile(username); err != nil {
+		return "", err
+	}
+	path := filepath.Join(ws.basePath, username, "StateFile.txt")
+
+	text, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	return string(text), nil
+}
+
+func (ws WordStorage) SetState(username string, state string) error {
+	path := filepath.Join(ws.basePath, username, "StateFile.txt")
+
+	if err := os.Truncate(path, 0); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(state), defaultPerm)
+}
+
+func (ws WordStorage) AllWords(username string) ([]storage.Word, error) {
+	fPath := filepath.Join(ws.basePath, username)
+	files, err := os.ReadDir(fPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(files) == 1 {
+		return nil, storage.ErrNoPagesSaved
+	}
+
+	var words []storage.Word
+	for i := 0; i < len(files); i++ {
+		if files[i].Name() == "StateFile.txt" {
+			continue
+		}
+
+		def, err := os.ReadFile(path.Join(fPath, files[i].Name()))
+		if err != nil {
+			return nil, err
+		}
+
+		words = append(words, storage.Word{
+			UserName:   username,
+			Word:       strings.TrimSuffix(files[i].Name(), ".txt"),
+			Definition: string(def),
+		})
+	}
+	return words, nil
 }
