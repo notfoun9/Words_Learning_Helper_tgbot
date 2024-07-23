@@ -3,6 +3,7 @@ package telegram_events
 import (
 	"errors"
 	"log"
+	"os"
 	"strings"
 	"telegram-bot/clients/telegram"
 	"telegram-bot/lib/e"
@@ -15,12 +16,14 @@ const (
 	StartHelp = "/start"
 	RemoveCmd = "/rmv"
 	AllCmd    = "/all"
+
+	ReadyToRemove = "removeWord"
 )
 
 func (p *ProcessorTelegram) doCmd(text string, chatID int, username string) error {
 	text = strings.TrimSpace(text)
 
-	log.Printf("got new cmd %s from %s with id %d", text, username, chatID)
+	log.Printf("got new cmd %s from %s", text, username)
 
 	state, err := p.wordStorage.GetState(username)
 	if err != nil {
@@ -42,7 +45,7 @@ func (p *ProcessorTelegram) doCmd(text string, chatID int, username string) erro
 		default:
 			return p.saveWord(chatID, text, username)
 		}
-	} else if state == "removeWord" {
+	} else if state == ReadyToRemove {
 		return p.removeWord(chatID, username, text)
 	} else {
 		return p.giveDefinitionWord(chatID, username, text)
@@ -57,15 +60,8 @@ func (p *ProcessorTelegram) sayHello(chatID int) error {
 	return p.tg.SendMessage(chatID, msgHello)
 }
 
-func NewMessageSender(chatID int, tg *telegram.Client) func(string) error {
-	return func(msg string) error {
-		return tg.SendMessage(chatID, msg)
-	}
-}
-
 func (t *ProcessorTelegram) saveWord(chatID int, word string, username string) (err error) {
 	defer func() { err = e.Wrap("can't do comand: save page", err) }()
-
 	sendMessage := NewMessageSender(chatID, t.tg)
 
 	wordToAdd := &storage.Word{
@@ -114,23 +110,14 @@ func (t *ProcessorTelegram) removeCmd(chatID int, username string) error {
 		return err
 	}
 
-	return t.wordStorage.SetState(username, "removeWord")
+	return t.wordStorage.SetState(username, ReadyToRemove)
 }
 
 func (t *ProcessorTelegram) removeWord(chatID int, username string, word string) error {
-	b, err := t.wordStorage.DoesExistWord(username, word)
-	if err != nil {
-		return err
-	}
-
-	if !b {
-		if err := t.wordStorage.SetState(username, ""); err != nil {
-			return err
-		}
+	err := t.wordStorage.RemoveWord(username, word)
+	if err == os.ErrNotExist {
 		return t.tg.SendMessage(chatID, msgNoSuchWord)
-	}
-
-	if err := t.wordStorage.RemoveWord(username, word); err != nil {
+	} else if err != nil {
 		return err
 	}
 
@@ -145,7 +132,9 @@ func (t *ProcessorTelegram) giveDefinitionWord(chatID int, username string, def 
 	return t.tg.SendMessage(chatID, msgSaved)
 }
 
-func (t *ProcessorTelegram) printAll(chatID int, username string) error {
+func (t *ProcessorTelegram) printAll(chatID int, username string) (err error) {
+	defer func() { e.Wrap("Unable to print the list ", err) }()
+
 	words, err := t.wordStorage.AllWords(username)
 	if err == storage.ErrNoPagesSaved {
 		return t.tg.SendMessage(chatID, msgNoSavedWords)
@@ -165,4 +154,10 @@ func (t *ProcessorTelegram) printAll(chatID int, username string) error {
 		}
 	}
 	return nil
+}
+
+func NewMessageSender(chatID int, tg *telegram.Client) func(string) error {
+	return func(msg string) error {
+		return tg.SendMessage(chatID, msg)
+	}
 }

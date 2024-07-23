@@ -5,7 +5,6 @@ import (
 	"io/fs"
 	"math/rand"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"telegram-bot/lib/e"
@@ -14,10 +13,7 @@ import (
 )
 
 const defaultPerm = 0774
-
-type Storage struct {
-	basePath string
-}
+const stateFile = "StateFile.txt"
 
 func New(base string) WordStorage {
 	return WordStorage{basePath: base}
@@ -53,7 +49,7 @@ func (ws WordStorage) SaveWord(word *storage.Word) (err error) {
 		return err
 	}
 
-	path := filepath.Join(ws.basePath, word.UserName, "StateFile.txt")
+	path := filepath.Join(ws.basePath, word.UserName, stateFile)
 
 	if err := os.Truncate(path, 0); err != nil {
 		return err
@@ -63,29 +59,6 @@ func (ws WordStorage) SaveWord(word *storage.Word) (err error) {
 	}
 
 	return nil
-}
-
-func (ws WordStorage) createStateFile(username string) error {
-	folderPath := filepath.Join(ws.basePath, username)
-
-	if err := os.MkdirAll(folderPath, defaultPerm); err != nil {
-		return err
-	}
-
-	path := filepath.Join(folderPath, "StateFile.txt")
-
-	_, err := os.Stat(path)
-	if errors.Is(err, os.ErrNotExist) {
-		file, err := os.Create(path)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = file.Close() }()
-
-		return err
-	} else {
-		return err
-	}
 }
 
 func (ws WordStorage) PickRandomWord(username string) (word *storage.Word, err error) {
@@ -107,12 +80,12 @@ func (ws WordStorage) PickRandomWord(username string) (word *storage.Word, err e
 		n := rand.Intn(len(files))
 		file = files[n]
 
-		if file.Name() != "StateFile.txt" {
+		if file.Name() != stateFile {
 			break
 		}
 	}
 
-	text, err := os.ReadFile(path.Join(fPath, file.Name()))
+	text, err := os.ReadFile(filepath.Join(fPath, file.Name()))
 	if err != nil {
 		return nil, err
 	}
@@ -129,19 +102,20 @@ func (ws WordStorage) PickRandomWord(username string) (word *storage.Word, err e
 func (ws WordStorage) RemoveWord(username string, word string) error {
 	fileName := word + ".txt"
 
-	path := filepath.Join(ws.basePath, username, fileName)
+	b, err := ws.DoesExistWord(username, word)
+	if !b {
+		return os.ErrNotExist
+	}
+	if err != nil {
+		return err
+	}
 
+	path := filepath.Join(ws.basePath, username, fileName)
 	if err := os.Remove(path); err != nil {
 		return e.Wrap("cant remove file", err)
 	}
 
-	path = filepath.Join(ws.basePath, username, "StateFile.txt")
-
-	if err := os.Truncate(path, 0); err != nil {
-		return err
-	}
-
-	return nil
+	return ws.SetState(username, "")
 }
 
 func (ws WordStorage) DoesExistWord(username string, w string) (b bool, err error) {
@@ -160,8 +134,8 @@ func (ws WordStorage) DoesExistWord(username string, w string) (b bool, err erro
 }
 
 func (ws WordStorage) GiveDefinition(username string, definition string) error {
-	path := filepath.Join(ws.basePath, username, "StateFile.txt")
-	word, err := os.ReadFile(path)
+	statePath := ws.stateFilePath(username)
+	word, err := os.ReadFile(statePath)
 	if err != nil {
 		return err
 	}
@@ -172,7 +146,7 @@ func (ws WordStorage) GiveDefinition(username string, definition string) error {
 		return err
 	}
 
-	if err := os.Truncate(path, 0); err != nil {
+	if err := ws.SetState(username, ""); err != nil {
 		return err
 	}
 	return nil
@@ -182,7 +156,7 @@ func (ws WordStorage) GetState(username string) (string, error) {
 	if err := ws.createStateFile(username); err != nil {
 		return "", err
 	}
-	path := filepath.Join(ws.basePath, username, "StateFile.txt")
+	path := ws.stateFilePath(username)
 
 	text, err := os.ReadFile(path)
 	if err != nil {
@@ -193,7 +167,7 @@ func (ws WordStorage) GetState(username string) (string, error) {
 }
 
 func (ws WordStorage) SetState(username string, state string) error {
-	path := filepath.Join(ws.basePath, username, "StateFile.txt")
+	path := ws.stateFilePath(username)
 
 	if err := os.Truncate(path, 0); err != nil {
 		return err
@@ -214,11 +188,11 @@ func (ws WordStorage) AllWords(username string) ([]storage.Word, error) {
 
 	var words []storage.Word
 	for i := 0; i < len(files); i++ {
-		if files[i].Name() == "StateFile.txt" {
+		if files[i].Name() == stateFile {
 			continue
 		}
 
-		def, err := os.ReadFile(path.Join(fPath, files[i].Name()))
+		def, err := os.ReadFile(filepath.Join(fPath, files[i].Name()))
 		if err != nil {
 			return nil, err
 		}
@@ -230,4 +204,31 @@ func (ws WordStorage) AllWords(username string) ([]storage.Word, error) {
 		})
 	}
 	return words, nil
+}
+
+func (ws WordStorage) createStateFile(username string) error {
+	folderPath := filepath.Join(ws.basePath, username)
+
+	if err := os.MkdirAll(folderPath, defaultPerm); err != nil {
+		return err
+	}
+
+	path := ws.stateFilePath(username)
+
+	_, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		file, err := os.Create(path)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = file.Close() }()
+
+		return err
+	} else {
+		return err
+	}
+}
+
+func (ws WordStorage) stateFilePath(username string) string {
+	return filepath.Join(ws.basePath, username, stateFile)
 }
