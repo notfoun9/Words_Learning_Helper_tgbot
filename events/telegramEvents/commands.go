@@ -30,7 +30,9 @@ func (p *ProcessorTelegram) doCmd(text string, chatID int, username string) erro
 		return err
 	}
 
-	if state == "" {
+	if state == ReadyToRemove {
+		return p.removeWord(chatID, username, text)
+	} else if len(state) == 0 {
 		switch text {
 		case RndCmd:
 			return p.sendRandomWord(chatID, username)
@@ -45,8 +47,6 @@ func (p *ProcessorTelegram) doCmd(text string, chatID int, username string) erro
 		default:
 			return p.saveWord(chatID, text, username)
 		}
-	} else if state == ReadyToRemove {
-		return p.removeWord(chatID, username, text)
 	} else {
 		return p.giveDefinitionWord(chatID, username, text)
 	}
@@ -91,7 +91,7 @@ func (t *ProcessorTelegram) sendRandomWord(chatID int, username string) (err err
 	word, err := t.wordStorage.PickRandomWord(username)
 
 	if err != nil {
-		if errors.Is(err, storage.ErrNoPagesSaved) {
+		if errors.Is(err, storage.ErrNoWordsSaved) {
 			return sendMessage(msgNoSavedWords)
 		} else {
 			return err
@@ -114,7 +114,12 @@ func (t *ProcessorTelegram) removeCmd(chatID int, username string) error {
 }
 
 func (t *ProcessorTelegram) removeWord(chatID int, username string, word string) error {
-	err := t.wordStorage.RemoveWord(username, word)
+	err := t.wordStorage.SetState(username, "")
+	if err != nil {
+		return err
+	}
+
+	err = t.wordStorage.RemoveWord(username, word)
 	if err == os.ErrNotExist {
 		return t.tg.SendMessage(chatID, msgNoSuchWord)
 	} else if err != nil {
@@ -136,7 +141,7 @@ func (t *ProcessorTelegram) printAll(chatID int, username string) (err error) {
 	defer func() { e.Wrap("Unable to print the list ", err) }()
 
 	words, err := t.wordStorage.AllWords(username)
-	if err == storage.ErrNoPagesSaved {
+	if err == storage.ErrNoWordsSaved {
 		return t.tg.SendMessage(chatID, msgNoSavedWords)
 	} else if err != nil {
 		return err

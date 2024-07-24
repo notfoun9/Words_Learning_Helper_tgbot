@@ -6,21 +6,28 @@ import (
 	"telegram-bot/clients/telegram"
 	event_consumer "telegram-bot/consumer/event-consumer"
 	telegram_events "telegram-bot/events/telegramEvents"
-	"telegram-bot/storage/files"
+	"telegram-bot/storage/sqlite"
 )
 
 const (
 	tgBotHost   = "api.telegram.org"
-	storagePath = "storage"
+	storagePath = `storage/data/users`
+	storageSql  = `storage/data/sqlite`
 	batchSize   = 100
 )
 
 func main() {
 	tgClient := telegram.New(tgBotHost, mustToken())
 
+	storage, err := sqlite.New(storageSql)
+	if err != nil {
+		log.Println(err.Error())
+	}
+	storage.Init()
+
 	eventsProcessor := telegram_events.New(
 		tgClient,
-		files.New(storagePath),
+		storage,
 	)
 
 	log.Printf("Service launched")

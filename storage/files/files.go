@@ -71,7 +71,7 @@ func (ws WordStorage) PickRandomWord(username string) (word *storage.Word, err e
 	}
 
 	if len(files) == 1 {
-		return nil, storage.ErrNoPagesSaved
+		return nil, storage.ErrNoWordsSaved
 	}
 
 	var file fs.DirEntry
@@ -183,7 +183,7 @@ func (ws WordStorage) AllWords(username string) ([]storage.Word, error) {
 	}
 
 	if len(files) == 1 {
-		return nil, storage.ErrNoPagesSaved
+		return nil, storage.ErrNoWordsSaved
 	}
 
 	var words []storage.Word

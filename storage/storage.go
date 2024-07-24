@@ -4,7 +4,7 @@ import (
 	"errors"
 )
 
-var ErrNoPagesSaved = errors.New("no pages saved")
+var ErrNoWordsSaved = errors.New("no words saved")
 
 type WordStorage interface {
 	SaveWord(word *Word) error
