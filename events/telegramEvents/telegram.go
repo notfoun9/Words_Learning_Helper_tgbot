@@ -92,6 +92,10 @@ func (t *ProcessorTelegram) processMessage(event events.Event) error {
 		return e.Wrap("impossible to process message", err)
 	}
 
+	if len(event.Text) == 0 {
+		return nil
+	}
+
 	if err := t.doCmd(event.Text, meta.ChatID, meta.UserName); err != nil {
 		return e.Wrap("cant process message", err)
 	}

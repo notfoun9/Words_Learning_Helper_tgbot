@@ -9,14 +9,13 @@ Use command /all to get all the list printed`
 const msgHello = "Hello there!\n\n" + msgHelp
 
 const (
-	msgNewWord        = "Write a word in lowercase letters"
-	msgGiveDefinition = "Give me a definition of this word"
+	msgGiveDefinition = "Give me a definition of this word 😳"
 	msgUnknownCmd     = "Unknown command"
-	msgNoSavedWords   = "You have no saved words left"
-	msgSaved          = "Saved!"
-	msgAlreadyExists  = "You have already saved this word"
+	msgNoSavedWords   = "You have no saved words left 🤡"
+	msgSaved          = "Saved! ✅"
+	msgAlreadyExists  = "You have already saved this word 🥴"
 	msgListOfWords    = "Here are all your saved words: "
-	msgNoSuchWord     = "You haven't saved this word"
-	msgWordToDelete   = "Which word do you want to delete?"
-	msgWordRemoved    = " is removed from the list"
+	msgNoSuchWord     = "You haven't saved this word 🤡"
+	msgWordToDelete   = "Which word do you want to delete? 🥺"
+	msgWordRemoved    = " is removed from the list 💀"
 )
