@@ -1,2 +1,5 @@
 /telegram-bot
-data
+storage/data
+.vscode
+.DS_Store
+.DS_STORE
