@@ -1,4 +1,4 @@
-package telegram
+package telegram_client
 
 type UpdateResponse struct {
 	Ok     bool     `json:"ok"`
@@ -22,4 +22,12 @@ type From struct {
 
 type Chat struct {
 	ID int `json:"id"`
+}
+
+func (update Update) ChatID() int {
+	return update.Message.Chat.ID
+}
+
+func (update Update) Username() string {
+	return update.Message.From.Username
 }

@@ -1,7 +1,6 @@
 package sqlite
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -12,20 +11,20 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-const defaultPerm = 0774
-const dbName = "sqliteDB"
+const defaultPermission = 0774
+const databaseName = "sqliteDB"
 const state = "statestatestate"
 
 type SqlStorage struct {
 	dataBase *sql.DB
 }
 
-func New(path string) (*SqlStorage, error) {
-	if err := os.MkdirAll(path, defaultPerm); err != nil {
+func NewSQLStorage(folderPath string) (*SqlStorage, error) {
+	if err := os.MkdirAll(folderPath, defaultPermission); err != nil {
 		return nil, err
 	}
 
-	dataBase, err := sql.Open("sqlite3", filepath.Join(path, dbName))
+	dataBase, err := sql.Open("sqlite3", filepath.Join(folderPath, databaseName))
 	if err != nil {
 		return nil, fmt.Errorf("can't open database: %w", err)
 	}
@@ -40,18 +39,18 @@ func New(path string) (*SqlStorage, error) {
 }
 
 func (sq *SqlStorage) Init() error {
-	query := `CREATE TABLE IF NOT EXISTS words (username TEXT, word TEXT, definition TEXT)`
+	createTableQuery := `CREATE TABLE IF NOT EXISTS words (username TEXT, word TEXT, definition TEXT)`
 
-	_, err := sq.dataBase.ExecContext(context.TODO(), query)
+	_, err := sq.dataBase.Exec(createTableQuery)
 	if err != nil {
 		return fmt.Errorf("can't create a table: %w", err)
 	}
 	return nil
 }
 
-func (sq SqlStorage) SaveWord(word *storage.Word) error {
-	query := `INSERT INTO words (username, word, definition) VALUES(?, ?, ?)`
-	_, err := sq.dataBase.ExecContext(context.TODO(), query, word.UserName, word.Word, "")
+func (sq SqlStorage) Save(word *storage.Word) error {
+	saveWorsQuery := `INSERT INTO words (username, word, definition) VALUES(?, ?, ?)`
+	_, err := sq.dataBase.Exec(saveWorsQuery, word.UserName, word.Word, "")
 	if err != nil {
 		return fmt.Errorf("cant save the word whaaat: %w", err)
 	}
@@ -60,7 +59,7 @@ func (sq SqlStorage) SaveWord(word *storage.Word) error {
 	return nil
 }
 
-func (sq *SqlStorage) PickRandomWord(username string) (*storage.Word, error) {
+func (sq *SqlStorage) PickRandom(username string) (*storage.Word, error) {
 	size, err := sq.size(username)
 	if err != nil {
 		return nil, err
@@ -69,20 +68,20 @@ func (sq *SqlStorage) PickRandomWord(username string) (*storage.Word, error) {
 		return nil, storage.ErrNoWordsSaved
 	}
 
-	queryWord := `SELECT word FROM words WHERE username = ? AND word != ? ORDER BY RANDOM() LIMIT 1`
-	queryDef := `SELECT definition FROM words WHERE username = ? AND word = ? ORDER BY RANDOM() LIMIT 1`
+	queryGetWord := `SELECT word FROM words WHERE username = ? AND word != ? ORDER BY RANDOM() LIMIT 1`
+	queryGetDefinition := `SELECT definition FROM words WHERE username = ? AND word = ? ORDER BY RANDOM() LIMIT 1`
 
 	var word string
 	var definition string
 
-	err = sq.dataBase.QueryRowContext(context.TODO(), queryWord, username, state).Scan(&word)
+	err = sq.dataBase.QueryRow(queryGetWord, username, state).Scan(&word)
 	if err == sql.ErrNoRows {
 		return nil, storage.ErrNoWordsSaved
 	} else if err != nil {
 		return nil, fmt.Errorf("cant save the word: %w", err)
 	}
 
-	err = sq.dataBase.QueryRowContext(context.TODO(), queryDef, username, word).Scan(&definition)
+	err = sq.dataBase.QueryRow(queryGetDefinition, username, word).Scan(&definition)
 	if err != nil {
 		return nil, fmt.Errorf("cant save the word: %w", err)
 	}
@@ -93,8 +92,8 @@ func (sq *SqlStorage) PickRandomWord(username string) (*storage.Word, error) {
 	}, nil
 }
 
-func (sq *SqlStorage) RemoveWord(username string, word string) error {
-	doesExist, err := sq.DoesExistWord(username, word)
+func (sq *SqlStorage) Remove(username string, word string) error {
+	doesExist, err := sq.DoesExist(username, word)
 	if err != nil {
 		return err
 	}
@@ -102,19 +101,19 @@ func (sq *SqlStorage) RemoveWord(username string, word string) error {
 		return os.ErrNotExist
 	}
 
-	query := `DELETE FROM words WHERE username = ? AND word = ?`
-	if _, err := sq.dataBase.ExecContext(context.TODO(), query, username, word); err != nil {
+	queryDeleteWord := `DELETE FROM words WHERE username = ? AND word = ?`
+	if _, err := sq.dataBase.Exec(queryDeleteWord, username, word); err != nil {
 		return fmt.Errorf("cant remove page: %w", err)
 	}
 	return nil
 }
 
-func (sq *SqlStorage) DoesExistWord(username string, word string) (bool, error) {
-	query := `SELECT COUNT(*) FROM words WHERE username = ? AND word = ?`
+func (sq *SqlStorage) DoesExist(username string, word string) (bool, error) {
+	queryCountEntries := `SELECT COUNT(*) FROM words WHERE username = ? AND word = ?`
 
 	var count int
 
-	err := sq.dataBase.QueryRowContext(context.TODO(), query, username, word).Scan(&count)
+	err := sq.dataBase.QueryRow(queryCountEntries, username, word).Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("cant check if the word is saved: %w", err)
 	}
@@ -126,14 +125,14 @@ func (sq *SqlStorage) DoesExistWord(username string, word string) (bool, error) 
 }
 
 func (sq *SqlStorage) GiveDefinition(username string, definition string) error {
-	query := `UPDATE words SET definition = ? WHERE username = ? AND word = ?;`
+	querySetDefinition := `UPDATE words SET definition = ? WHERE username = ? AND word = ?;`
 
 	word, err := sq.GetState(username)
 	if err != nil {
 		return err
 	}
 
-	_, err = sq.dataBase.ExecContext(context.TODO(), query, definition, username, word)
+	_, err = sq.dataBase.Exec(querySetDefinition, definition, username, word)
 	if err != nil {
 		return fmt.Errorf("cant give the definition: %w", err)
 	}
@@ -143,25 +142,25 @@ func (sq *SqlStorage) GiveDefinition(username string, definition string) error {
 }
 
 func (sq *SqlStorage) GetState(username string) (string, error) {
-	doesExist, err := sq.DoesExistWord(username, state)
+	doesExist, err := sq.DoesExist(username, state)
 	if err != nil {
 		log.Println("impossible to get state: ", err)
 		return "nil", err
 	}
 
 	if !doesExist {
-		sq.SaveWord(&storage.Word{
+		sq.Save(&storage.Word{
 			Word:       state,
 			Definition: "",
 			UserName:   username,
 		})
 		return "", sq.SetState(username, "")
 	}
-	query := `SELECT definition FROM words WHERE username = ? AND word = ? ORDER BY RANDOM() LIMIT 1`
+	queryGetState := `SELECT definition FROM words WHERE username = ? AND word = ? ORDER BY RANDOM() LIMIT 1`
 
 	var stateMsg string
 
-	err = sq.dataBase.QueryRowContext(context.TODO(), query, username, state).Scan(&stateMsg)
+	err = sq.dataBase.QueryRow(queryGetState, username, state).Scan(&stateMsg)
 	if err != nil {
 		return "", fmt.Errorf("cant get the state: %w", err)
 	}
@@ -172,7 +171,7 @@ func (sq *SqlStorage) GetState(username string) (string, error) {
 func (sq *SqlStorage) SetState(username string, newState string) error {
 	query := `UPDATE words SET definition = ? WHERE username = ? AND word = ?;`
 
-	_, err := sq.dataBase.ExecContext(context.TODO(), query, newState, username, state)
+	_, err := sq.dataBase.Exec(query, newState, username, state)
 	if err != nil {
 		return fmt.Errorf("cant set the new state: %w", err)
 	}
@@ -190,7 +189,7 @@ func (sq *SqlStorage) AllWords(username string) (words []storage.Word, err error
 	}
 
 	query := `SELECT word, definition FROM words WHERE username = ?`
-	rows, err := sq.dataBase.QueryContext(context.TODO(), query, username)
+	rows, err := sq.dataBase.Query(query, username)
 	if err != nil {
 		return nil, err
 	}
@@ -218,6 +217,6 @@ func (sq *SqlStorage) AllWords(username string) (words []storage.Word, err error
 func (sq *SqlStorage) size(username string) (size int, err error) {
 	query := `SELECT COUNT(username) FROM words WHERE username = ?`
 
-	err = sq.dataBase.QueryRowContext(context.TODO(), query, username).Scan(&size)
+	err = sq.dataBase.QueryRow(query, username).Scan(&size)
 	return
 }

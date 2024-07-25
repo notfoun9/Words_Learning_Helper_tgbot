@@ -1,4 +1,4 @@
-package telegram
+package telegram_client
 
 import (
 	"encoding/json"
@@ -21,7 +21,7 @@ type Client struct {
 	client   http.Client
 }
 
-func New(host string, token string) *Client {
+func NewClient(host string, token string) *Client {
 	return &Client{
 		host:     host,
 		basePath: newBasePath(token),

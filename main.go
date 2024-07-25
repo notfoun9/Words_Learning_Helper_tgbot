@@ -3,23 +3,23 @@ package main
 import (
 	"flag"
 	"log"
-	"telegram-bot/clients/telegram"
+	"telegram-bot/clients/telegram_client"
 	event_consumer "telegram-bot/consumer/event-consumer"
 	telegram_events "telegram-bot/events/telegramEvents"
 	"telegram-bot/storage/sqlite"
 )
 
 const (
-	tgBotHost   = "api.telegram.org"
-	storagePath = `storage/data/users`
-	storageSql  = `storage/data/sqlite`
-	batchSize   = 100
+	tgBotHost        = "api.telegram.org"
+	storagePath      = `storage/data/users`
+	storageSql       = `storage/data/sqlite`
+	updatesBatchSize = 100
 )
 
 func main() {
-	tgClient := telegram.New(tgBotHost, mustToken())
+	tgClient := telegram_client.NewClient(tgBotHost, mustToken())
 
-	storage, err := sqlite.New(storageSql)
+	storage, err := sqlite.NewSQLStorage(storageSql)
 	if err != nil {
 		log.Println(err.Error())
 	}
@@ -32,7 +32,7 @@ func main() {
 
 	log.Printf("Service launched")
 
-	consumer := event_consumer.New(eventsProcessor, eventsProcessor, batchSize)
+	consumer := event_consumer.New(eventsProcessor, eventsProcessor, updatesBatchSize)
 
 	if err := consumer.Start(); err != nil {
 		log.Fatal()

@@ -7,22 +7,22 @@ import (
 )
 
 type Consumer struct {
-	fetcher   events.Fetcher
-	processor events.Processor
-	batchSize int
+	fetcher          events.Fetcher
+	processor        events.Processor
+	updatesBatchSize int
 }
 
 func New(fetcher events.Fetcher, processor events.Processor, batchSize int) Consumer {
 	return Consumer{
-		fetcher:   fetcher,
-		processor: processor,
-		batchSize: batchSize,
+		fetcher:          fetcher,
+		processor:        processor,
+		updatesBatchSize: batchSize,
 	}
 }
 
 func (c Consumer) Start() error {
 	for {
-		gotEvents, err := c.fetcher.Fetch(c.batchSize)
+		gotEvents, err := c.fetcher.Fetch(c.updatesBatchSize)
 		if err != nil {
 			log.Printf("[ERR] consumer: %s", err.Error())
 			continue
@@ -38,14 +38,6 @@ func (c Consumer) Start() error {
 		}
 	}
 }
-
-/*
-Проблемы:
-	1. Потеря событий: ретраи, возвращение в хранилище, фоллбэк подтверждение
-	2. Обработка всей пачки: остановка после первой ошибки, счетчик ошибок
-	3. Параллельная обработка sync.WaitGroup()
-
-*/
 
 func (c *Consumer) HandleEvents(events []events.Event) error {
 	for _, event := range events {

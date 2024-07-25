@@ -7,10 +7,10 @@ import (
 var ErrNoWordsSaved = errors.New("no words saved")
 
 type WordStorage interface {
-	SaveWord(word *Word) error
-	PickRandomWord(username string) (*Word, error)
-	RemoveWord(username string, word string) error
-	DoesExistWord(username string, word string) (bool, error)
+	Save(word *Word) error
+	PickRandom(username string) (*Word, error)
+	Remove(username string, word string) error
+	DoesExist(username string, word string) (bool, error)
 	GiveDefinition(username string, definition string) error
 
 	GetState(username string) (string, error)
