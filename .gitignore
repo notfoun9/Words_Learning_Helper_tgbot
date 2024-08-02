@@ -1,5 +1,6 @@
 /telegram-bot
 storage/data
 .vscode
+token.txt
 .DS_Store
 .DS_STORE
