@@ -1,4 +1,5 @@
 This is a bot that helps you learn new English words!
+Inspired by youtube.com/@nikolay_tuzov guide
 
 To add a new word to your list send it to the bot and then it will ask you for a definitoin. Send it and the word+definition will be saved in your list!
 The /rnd command makes the bot send you a random word from your list and its hidden definition. Click on the definition text to open it and check if you guessed correctly!
